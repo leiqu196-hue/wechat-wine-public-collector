@@ -1,0 +1,49 @@
+name: Inspect additional public publishers
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: Public publisher inspection targets as JSON array
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: public-publisher-discovery
+  cancel-in-progress: false
+jobs:
+  inspect:
+    name: ${{ matrix.target.label }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: ${{ fromJSON(inputs.targets) }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install fixed official browser runtime
+        run: |
+          python3 -m pip install playwright==1.63.0
+          python3 -m playwright install --with-deps firefox
+      - name: Inspect public article or ordinary search
+        env:
+          DISCOVERY_TARGET: ${{ toJSON(matrix.target) }}
+        run: xvfb-run -a python3 discover.py
+      - name: Print bounded public result
+        if: always()
+        run: |
+          python3 - <<'PYCODE'
+          import base64,hashlib
+          from pathlib import Path
+          p=Path('discovery.json')
+          if p.exists():
+              raw=p.read_bytes()
+              if len(raw)>250000: raise ValueError('public result size limit')
+              encoded=base64.b64encode(raw).decode()
+              print('PUBLIC_RESULT_SHA256='+hashlib.sha256(raw).hexdigest())
+              for i in range(0,len(encoded),4000): print('PUBLIC_RESULT_CHUNK='+encoded[i:i+4000])
+          PYCODE
