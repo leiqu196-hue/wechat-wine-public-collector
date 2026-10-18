@@ -27,6 +27,32 @@ async def inspect(page,expected,url):
  d.pop('canonical',None)
  if d['mid'].isdigit() and d['idx'].isdigit() and isinstance(d['sn'],str) and re.fullmatch('[a-fA-F0-9]{32}',d['sn']):d['source_url']='https://mp.weixin.qq.com/s?'+urlencode({'__biz':d['biz'],'mid':d['mid'],'idx':d['idx'],'sn':d['sn']})
  return d
+def public_jump(value):
+ p=urlsplit(value)
+ if p.scheme not in ('http','https') or p.username or p.password or p.port not in (None,80,443):raise ValueError('public jump origin')
+ if not ((p.hostname=='weixin.sogou.com' and p.path=='/link') or (p.hostname=='mp.weixin.qq.com' and p.path in ('/profile','/mp/profile_ext','/s'))):raise ValueError('public jump path')
+ return 'https://'+p.netloc+p.path+('?' + p.query if p.query else '')
+async def account_candidates(page,expected,out):
+ await page.goto('https://weixin.sogou.com/weixin?'+urlencode({'type':1,'query':expected,'ie':'utf8'}),wait_until='domcontentloaded',timeout=25000)
+ rows=await page.evaluate("""()=>[...document.querySelectorAll('.news-list2 li,.news-list li')].slice(0,10).map(li=>({name:li.querySelector('.tit a')?.innerText.trim(),wechat_id:li.querySelector('[name="em_weixinhao"]')?.innerText.trim(),url:li.querySelector('.tit a')?.href,recent:[...li.querySelectorAll('.recent a')].map(a=>({title:a.innerText,url:a.href}))}))""")
+ out['account_results']=[{k:r.get(k) for k in ['name','wechat_id','recent']} for r in rows]
+ matches=[r for r in rows if r.get('name')==expected];urls=[]
+ for r in matches[:1]:
+  for entry in r['recent']:
+   if any(w in entry['title'] for w in ['价','行情']):
+    try:urls.append(public_jump(entry['url']))
+    except ValueError:pass
+  if not r.get('url'):continue
+  try:
+   await page.goto(public_jump(r['url']),wait_until='domcontentloaded',timeout=25000)
+   profile=await page.evaluate("""()=>({title:document.title,body_tip:document.body.innerText.slice(0,400),biz:window.biz||null,rows:[...document.querySelectorAll('[hrefs],a[href]')].map(e=>({title:e.innerText.trim().slice(0,160),url:e.getAttribute('hrefs')||e.href})).filter(r=>r.title&&r.url&&r.url.includes('mp.weixin.qq.com/s?')).slice(0,20)})""")
+   out['profile']=profile
+   for entry in profile['rows']:
+    if any(w in entry['title'] for w in ['价','行情']):
+     try:urls.append(public_jump(entry['url']))
+     except ValueError:pass
+  except Exception as e:out['attempts'].append({'stage':'public_profile','error':type(e).__name__})
+ return list(dict.fromkeys(urls))[:2]
 async def main():
  target=json.loads(os.environ['DISCOVERY_TARGET']);expected=target['source']
  if expected not in SOURCES:raise ValueError('unsupported publisher')
@@ -35,12 +61,13 @@ async def main():
   browser=await pw.firefox.launch(headless=False,timeout=20000)
   try:
    page=await browser.new_page();page.set_default_timeout(12000)
-   if target.get('url'):urls=[article_input(target['url'])]
+   if target.get('kind')=='account':urls=await account_candidates(page,expected,out)
+   elif target.get('url'):urls=[article_input(target['url'])]
    else:
     query=target.get('query',expected)
     if not isinstance(query,str) or len(query)>80:raise ValueError('public query size')
     await page.goto('https://weixin.sogou.com/weixin?'+urlencode({'type':2,'query':query,'ie':'utf8'}),wait_until='domcontentloaded',timeout=25000)
-    links=await page.evaluate("""()=>[...document.querySelectorAll('.news-list li')].slice(0,10).map(li=>({title:li.querySelector('h3')?.innerText,url:li.querySelector('h3 a')?.href,author:li.querySelector('.account')?.innerText||li.querySelector('.s-p a')?.innerText}))""")
+    links=await page.evaluate("""()=>[...document.querySelectorAll('.news-list li')].slice(0,10).map(li=>({title:li.querySelector('h3')?.innerText,url:li.querySelector('h3 a')?.href,author:li.querySelector('[id*="_account_"]')?.innerText||li.querySelector('.account')?.innerText||li.querySelector('.s-p a')?.innerText}))""")
     out['search_titles']=[{'title':r['title'],'author':r['author']} for r in links]
     links.sort(key=lambda r:r.get('author')!=expected)
     urls=[r['url'].replace('http://weixin.sogou.com/','https://weixin.sogou.com/',1) for r in links if r.get('url') and any(k in (r.get('title') or '') for k in ['价','行情']) and urlsplit(r['url']).scheme in ('http','https') and urlsplit(r['url']).hostname=='weixin.sogou.com'][:2]
