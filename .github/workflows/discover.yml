@@ -29,6 +29,11 @@ jobs:
         run: |
           python3 -m pip install playwright==1.63.0
           python3 -m playwright install --with-deps firefox
+      - name: Install free CPU OCR engines for bounded image diagnostics
+        if: matrix.target.ocr_indices != null
+        run: |
+          python3 -m pip install rapidocr-onnxruntime==1.4.4 numpy==1.26.4 opencv-python==4.11.0.86 onnxruntime==1.20.1
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-sim
       - name: Inspect public article or ordinary search
         env:
           DISCOVERY_TARGET: ${{ toJSON(matrix.target) }}

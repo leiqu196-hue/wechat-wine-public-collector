@@ -1,5 +1,5 @@
 """Bounded manual inspection of public publisher pages. Never logs in or publishes prices."""
-import asyncio,json,os,re,base64,hashlib
+import asyncio,json,os,re,base64,hashlib,subprocess,sys,tempfile,signal
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs,urlencode
 from playwright.async_api import async_playwright
@@ -35,6 +35,7 @@ def public_jump(value):
 async def account_candidates(page,expected,out):
  await page.goto('https://weixin.sogou.com/weixin?'+urlencode({'type':1,'query':expected,'ie':'utf8'}),wait_until='domcontentloaded',timeout=25000)
  rows=await page.evaluate("""()=>[...document.querySelectorAll('.news-list2 li,.news-list li')].slice(0,10).map(li=>({name:li.querySelector('.tit a')?.innerText.trim(),wechat_id:li.querySelector('[name="em_weixinhao"]')?.innerText.trim(),url:li.querySelector('.tit a')?.href,recent:[...li.querySelectorAll('.recent a')].map(a=>({title:a.innerText,url:a.href}))}))""")
+ out['account_page']=await page.evaluate("""()=>({title:document.title,visible_text:document.body.innerText.slice(0,900),matching_links:[...document.querySelectorAll('a')].filter(a=>a.innerText.trim()).map(a=>({title:a.innerText.trim().slice(0,100),url:a.href})).filter(a=>a.title.includes("""+json.dumps(expected)+""")).slice(0,10)})""")
  out['account_results']=[{k:r.get(k) for k in ['name','wechat_id','recent']} for r in rows]
  matches=[r for r in rows if r.get('name')==expected];urls=[]
  for r in matches[:1]:
@@ -76,6 +77,19 @@ async def main():
     except Exception as e:out['attempts'].append({'error':type(e).__name__,'reason':str(e)[:80] if isinstance(e,ValueError) else 'public page unavailable'})
    out['status']='public_articles_inspected' if out['articles'] else 'no_public_articles'
   finally:await browser.close()
+ if target.get('ocr_indices') and out['articles']:
+  try:
+   with tempfile.TemporaryDirectory(prefix='public-wine-ocr-') as folder:
+    process=subprocess.Popen([sys.executable,'image_inspect.py'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True)
+    try:
+     stdout,stderr=process.communicate(json.dumps({'article':out['articles'][0],'indices':target['ocr_indices'],'directory':folder},ensure_ascii=False),timeout=75)
+     if process.returncode:raise subprocess.CalledProcessError(process.returncode,'image_inspect.py')
+     out['image_ocr']=json.loads(stdout)
+    finally:
+     try:os.killpg(process.pid,signal.SIGKILL)
+     except ProcessLookupError:pass
+     process.communicate(timeout=5)
+  except Exception as exc:out['image_ocr']={'status':'unavailable','error':type(exc).__name__}
  Path('discovery.json').write_text(json.dumps(out,ensure_ascii=False))
  print(json.dumps({'source':expected,'status':out['status'],'articles':[{'title':a['title'],'published_at':a['published_at'],'biz':a['biz'],'table_count':len(a['tables']),'image_count':len(a['images']),'album_ids':a['album_ids']} for a in out['articles']],'attempts':out['attempts']},ensure_ascii=False))
 if __name__=='__main__':asyncio.run(asyncio.wait_for(main(),140))
