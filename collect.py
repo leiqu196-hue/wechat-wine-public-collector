@@ -35,25 +35,32 @@ async def run():
  today=datetime.now(CN).date().isoformat();attempts=[]
  async with async_playwright() as pw:
   for engine in ['chromium','firefox']:
-   browser=None
+   browser=None;page=None;stage='launch'
    try:
     opts={'headless':False,'timeout':20000}
     if engine=='chromium':opts['chromium_sandbox']=True
     browser=await getattr(pw,engine).launch(**opts);page=await browser.new_page();page.set_default_timeout(12000)
-    await page.goto(ALBUM,wait_until='domcontentloaded',timeout=25000)
-    listing=await page.evaluate("""()=>({biz:window.biz,author:document.querySelector('.album__author-name')?.textContent.trim(),rows:[...document.querySelectorAll('li[data-link]')].slice(0,3).map(e=>({title:e.dataset.title,url:e.dataset.link}))})""")
+    stage='album_navigation';await page.goto(ALBUM,wait_until='domcontentloaded',timeout=25000)
+    stage='album_identity';listing=await page.evaluate("""()=>({biz:window.biz,author:document.querySelector('.album__author-name')?.textContent.trim(),rows:[...document.querySelectorAll('li[data-link]')].slice(0,3).map(e=>({title:e.dataset.title,url:e.dataset.link}))})""")
     if listing['biz']!=BIZ or listing['author']!=AUTHOR:raise ValueError('album publisher mismatch')
     prefix=f'{int(today[5:7])}月{int(today[8:])}日'
     candidates=[r for r in listing['rows'] if prefix in r['title']]
     if not candidates:raise ValueError('no current daily article')
-    url=article_url(candidates[0]['url']);await page.goto(url,wait_until='domcontentloaded',timeout=25000)
-    await page.locator('#js_content').wait_for(state='visible',timeout=12000)
+    stage='article_navigation';url=article_url(candidates[0]['url']);await page.goto(url,wait_until='domcontentloaded',timeout=25000)
+    stage='article_content';await page.locator('#js_content').wait_for(state='visible',timeout=12000)
     data=await page.evaluate("""()=>({title:document.querySelector('#activity-name')?.innerText.trim(),author:document.querySelector('#js_name')?.innerText.trim(),biz:window.biz,published_at:document.querySelector('#publish_time')?.innerText.trim(),body:document.querySelector('#js_content').innerText,tables:[...document.querySelectorAll('#js_content table')].map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim())))})""")
     if len(data['body'])>80000:raise ValueError('body size limit')
-    data.update(source_url=url,engine=engine,source=AUTHOR);data=verify(data,today)
+    stage='article_validation';data.update(source_url=url,engine=engine,source=AUTHOR);data=verify(data,today)
     out={'status':'publisher_today_verified_completeness_unverified','checked_at':datetime.now(CN).isoformat(),'article':data,'attempts':attempts}
     Path('result.json').write_text(json.dumps(out,ensure_ascii=False));print(json.dumps({'status':'publisher_today_verified_completeness_unverified','date':today,'engine':engine,'coverage':data['coverage'],'title':data['title']},ensure_ascii=False));return
-   except Exception as e:attempts.append({'engine':engine,'status':'unavailable','error':type(e).__name__})
+   except Exception as e:
+    diagnostic={'engine':engine,'stage':stage,'status':'unavailable','error':type(e).__name__}
+    if isinstance(e,ValueError):diagnostic['reason']=str(e)[:120]
+    if page:
+     try:
+      diagnostic['page']=await asyncio.wait_for(page.evaluate("""()=>({title:document.title.slice(0,160),has_content:!!document.querySelector('#js_content'),has_album:!!document.querySelector('li[data-link]'),verification:document.body.innerText.includes('环境异常')||document.body.innerText.includes('完成验证'),biz:window.biz||null,author:document.querySelector('.album__author-name')?.textContent.trim()||null})"""),3)
+     except Exception:pass
+    attempts.append(diagnostic)
    finally:
     if browser:await browser.close()
  out={'status':'no_today_verified_quotes','checked_at':datetime.now(CN).isoformat(),'attempts':attempts};Path('result.json').write_text(json.dumps(out));print(json.dumps(out));raise SystemExit(1)
