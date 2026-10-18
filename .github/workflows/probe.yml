@@ -1,8 +1,12 @@
 name: Public wholesale report probe
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '50 1 * * *'
+    - cron: '15,40 2 * * *'
+    - cron: '20 3 * * *'
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: public-wholesale-probe
   cancel-in-progress: false
@@ -12,6 +16,8 @@ jobs:
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install fixed public browser runtime
         run: |
           python3 -m pip install playwright==1.63.0
@@ -37,3 +43,7 @@ jobs:
               for offset in range(0,len(encoded),4000):
                   print('PUBLIC_RESULT_CHUNK='+encoded[offset:offset+4000])
           PYCODE
+      - name: Save current public report for independent server validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 publish.py

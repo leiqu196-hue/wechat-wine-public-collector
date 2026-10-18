@@ -31,19 +31,24 @@ def verify(d,today):
  if match and datetime(*map(int,match.groups()),tzinfo=CN).date().isoformat()!=published_date:raise ValueError('publication metadata conflict')
  expected=[];headers=0
  for table in d['tables']:
+  potential=[r for r in table if len(r) in (3,4) and r[0] and re.search(r'\d',r[1]) and re.search(r'\d',r[-1])]
+  if potential and not any(r in (['品名','规格','昨日行情','今日行情'],['品名','产品参数','单瓶价']) for r in table):raise ValueError('unknown quotation header')
   for i,row in enumerate(table):
    if row not in (['品名','规格','昨日行情','今日行情'],['品名','产品参数','单瓶价']):continue
    headers+=1
    for cells in table[i+1:]:
-    if len(cells)!=len(row):continue
+    if len(cells)!=len(row):
+     if cells in potential:raise ValueError('unexplained quotation row')
+     continue
     if re.fullmatch(r'\d{1,6}(?:\s*[⬆⬇↑↓])?',cells[-1]):expected.append(cells)
+    elif cells in potential:raise ValueError('unsupported quotation price')
  if headers<10 or not 100<=len(expected)<=500:raise ValueError('incomplete full quotation')
  d['coverage']={'price_rows':len(expected),'price_tables':headers};d['date']=today
  return d
 async def run():
  today=datetime.now(CN).date().isoformat();attempts=[]
  async with async_playwright() as pw:
-  for engine in ['chromium','firefox']:
+  for engine in ['firefox','chromium']:
    browser=None;page=None;data=None;stage='launch'
    try:
     opts={'headless':False,'timeout':20000}
