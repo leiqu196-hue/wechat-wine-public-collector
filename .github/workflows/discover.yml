@@ -7,7 +7,7 @@ on:
         required: true
         type: string
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: public-publisher-discovery
   cancel-in-progress: false
@@ -16,7 +16,7 @@ jobs:
     name: ${{ matrix.target.label }}
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         target: ${{ fromJSON(inputs.targets) }}
     runs-on: ubuntu-22.04
@@ -47,3 +47,7 @@ jobs:
               print('PUBLIC_RESULT_SHA256='+hashlib.sha256(raw).hexdigest())
               for i in range(0,len(encoded),4000): print('PUBLIC_RESULT_CHUNK='+encoded[i:i+4000])
           PYCODE
+      - name: Save public diagnostic separately from quotation feeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 save_discovery.py
