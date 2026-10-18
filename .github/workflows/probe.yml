@@ -1,0 +1,39 @@
+name: Public wholesale report probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: public-wholesale-probe
+  cancel-in-progress: false
+jobs:
+  read-public-report:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install fixed public browser runtime
+        run: |
+          python3 -m pip install playwright==1.63.0
+          python3 -m playwright install --with-deps chromium firefox
+      - name: Read anonymous current publisher report
+        run: xvfb-run -a python3 collect.py
+      - name: Print bounded public diagnostic
+        if: always()
+        run: |
+          python3 - <<'PYCODE'
+          import json,base64,hashlib
+          from pathlib import Path
+          p=Path('result.json')
+          if p.exists():
+              d=json.loads(p.read_text())
+              article=d.pop('article',{})
+              d['article_summary']={k:article.get(k) for k in ['source','title','date','source_url','engine','coverage']}
+              print(json.dumps(d,ensure_ascii=False))
+              raw=p.read_bytes()
+              if len(raw)>250000: raise ValueError('public diagnostic size limit')
+              encoded=base64.b64encode(raw).decode()
+              print('PUBLIC_RESULT_SHA256='+hashlib.sha256(raw).hexdigest())
+              for offset in range(0,len(encoded),4000):
+                  print('PUBLIC_RESULT_CHUNK='+encoded[offset:offset+4000])
+          PYCODE
