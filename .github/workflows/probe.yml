@@ -12,6 +12,11 @@ concurrency:
   cancel-in-progress: false
 jobs:
   read-public-report:
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        source: ['今日酒价', '茅粉鲁智深']
     runs-on: ubuntu-22.04
     timeout-minutes: 6
     steps:
@@ -23,6 +28,8 @@ jobs:
           python3 -m pip install playwright==1.63.0
           python3 -m playwright install --with-deps chromium firefox
       - name: Read anonymous current publisher report
+        env:
+          WINE_SOURCE: ${{ matrix.source }}
         run: xvfb-run -a python3 collect.py
       - name: Print bounded public diagnostic
         if: always()
