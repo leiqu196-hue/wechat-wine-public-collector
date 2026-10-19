@@ -6,7 +6,7 @@ from playwright.async_api import async_playwright
 SOURCES={'酒业网','国酒酱香','国酒醇香','易茅时价','茅粉鲁智深'}
 def article_input(url):
  p=urlsplit(url);q=parse_qs(p.query)
- if p.scheme!='https' or p.hostname!='mp.weixin.qq.com' or p.path!='/s' or p.username or p.password or p.port not in (None,443):raise ValueError('public article origin')
+ if p.scheme!='https' or p.hostname!='mp.weixin.qq.com' or not (p.path=='/s' or re.fullmatch(r'/s/[A-Za-z0-9_-]{22}',p.path)) or p.username or p.password or p.port not in (None,443):raise ValueError('public article origin')
  if set(q)-{'__biz','mid','idx','sn','chksm','src','timestamp','ver','signature','new'}:raise ValueError('unexpected article query')
  if len(url)>4000:raise ValueError('article URL size')
  return url
