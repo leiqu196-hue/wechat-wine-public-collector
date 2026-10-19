@@ -4,7 +4,7 @@ from pathlib import Path
 raw=Path('discovery.json').read_bytes()
 if len(raw)>250000:raise ValueError('diagnostic size limit')
 data=json.loads(raw)
-names={'酒业网':'wine-industry','国酒酱香':'guojiu','易茅时价':'yimao','茅粉鲁智深':'maofen'}
+names={'酒业网':'wine-industry','国酒酱香':'guojiu','国酒醇香':'guojiu-chunxiang','易茅时价':'yimao','茅粉鲁智深':'maofen'}
 name=names[data['source']]
 if data['status'] not in ('public_articles_inspected','no_public_articles'):raise ValueError('unsupported diagnostic status')
 repo=os.environ['GITHUB_REPOSITORY']

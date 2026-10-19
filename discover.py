@@ -3,7 +3,7 @@ import asyncio,json,os,re,base64,hashlib,subprocess,sys,tempfile,signal
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs,urlencode
 from playwright.async_api import async_playwright
-SOURCES={'酒业网','国酒酱香','易茅时价','茅粉鲁智深'}
+SOURCES={'酒业网','国酒酱香','国酒醇香','易茅时价','茅粉鲁智深'}
 def article_input(url):
  p=urlsplit(url);q=parse_qs(p.query)
  if p.scheme!='https' or p.hostname!='mp.weixin.qq.com' or p.path!='/s' or p.username or p.password or p.port not in (None,443):raise ValueError('public article origin')
