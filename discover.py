@@ -1,5 +1,5 @@
 """Bounded manual inspection of public publisher pages. Never logs in or publishes prices."""
-import asyncio,json,os,re,base64,hashlib,subprocess,sys,tempfile,signal
+import asyncio,json,os,re,base64,hashlib,subprocess,sys,tempfile,signal,html
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs,urlencode
@@ -20,7 +20,8 @@ async def inspect(page,expected,url):
  if len(d['body'])>80000 or len(d['tables'])>180:raise ValueError('public content size')
  if d['canonical']:
   try:
-   cp=urlsplit(d['canonical']);q=parse_qs(cp.query)
+   cp=urlsplit(html.unescape(d['canonical']));q=parse_qs(cp.query)
+   d['public_link_shape']={'scheme':cp.scheme,'host':cp.hostname,'path':cp.path if cp.path=='/s' else 'short' if re.fullmatch(r'/s/[A-Za-z0-9_-]{22}',cp.path) else 'other','query_keys':sorted(q)}
    if cp.scheme=='https' and cp.hostname=='mp.weixin.qq.com' and not cp.username and not cp.password and cp.port in (None,443) and re.fullmatch(r'/s/[A-Za-z0-9_-]{22}',cp.path):d['source_url']='https://mp.weixin.qq.com'+cp.path
    if cp.hostname=='mp.weixin.qq.com' and cp.path=='/s' and q.get('__biz')==[d['biz']]:
     for k in ['mid','idx','sn']:
