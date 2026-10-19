@@ -1,5 +1,6 @@
 """Bounded manual inspection of public publisher pages. Never logs in or publishes prices."""
 import asyncio,json,os,re,base64,hashlib,subprocess,sys,tempfile,signal
+from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs,urlencode
 from playwright.async_api import async_playwright
@@ -20,6 +21,7 @@ async def inspect(page,expected,url):
  if d['canonical']:
   try:
    cp=urlsplit(d['canonical']);q=parse_qs(cp.query)
+   if cp.scheme=='https' and cp.hostname=='mp.weixin.qq.com' and not cp.username and not cp.password and cp.port in (None,443) and re.fullmatch(r'/s/[A-Za-z0-9_-]{22}',cp.path):d['source_url']='https://mp.weixin.qq.com'+cp.path
    if cp.hostname=='mp.weixin.qq.com' and cp.path=='/s' and q.get('__biz')==[d['biz']]:
     for k in ['mid','idx','sn']:
      if not d.get(k) and len(q.get(k,[]))==1:d[k]=q[k][0]
@@ -70,7 +72,12 @@ async def main():
     await page.goto('https://weixin.sogou.com/weixin?'+urlencode({'type':2,'query':query,'ie':'utf8'}),wait_until='domcontentloaded',timeout=25000)
     links=await page.evaluate("""()=>[...document.querySelectorAll('.news-list li')].slice(0,10).map(li=>({title:li.querySelector('h3')?.innerText,url:li.querySelector('h3 a')?.href,author:li.querySelector('[id*="_account_"]')?.innerText||li.querySelector('.account')?.innerText||li.querySelector('.s-p a')?.innerText}))""")
     out['search_titles']=[{'title':r['title'],'author':r['author']} for r in links]
-    links.sort(key=lambda r:r.get('author')!=expected)
+    current=datetime.now(timezone(timedelta(hours=8))).date()
+    def priority(row):
+     title=row.get('title') or '';match=re.search(r'(\d{1,2})月(\d{1,2})日',title)
+     is_today=bool(match and (int(match[1]),int(match[2]))==(current.month,current.day))
+     return (not is_today,row.get('author')!=expected)
+    links.sort(key=priority)
     urls=[r['url'].replace('http://weixin.sogou.com/','https://weixin.sogou.com/',1) for r in links if r.get('url') and any(k in (r.get('title') or '') for k in ['价','行情']) and urlsplit(r['url']).scheme in ('http','https') and urlsplit(r['url']).hostname=='weixin.sogou.com'][:2]
    for url in urls:
     try:out['articles'].append(await inspect(page,expected,url))
