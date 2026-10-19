@@ -7,7 +7,7 @@ data=json.loads(raw)
 if data.get('status')!='publisher_today_verified_completeness_unverified':raise ValueError('no verified current publisher article')
 repo=os.environ['GITHUB_REPOSITORY']
 if repo!='leiqu196-hue/wechat-wine-public-collector':raise ValueError('repository mismatch')
-destinations={'今日酒价':('Mzk0NzI1MjY4Ng==','data/latest.json'),'茅粉鲁智深':('Mzg4MzMyMTExMQ==','data/maofen.json')}
+destinations={'今日酒价':('Mzk0NzI1MjY4Ng==','data/latest.json'),'茅粉鲁智深':('Mzg4MzMyMTExMQ==','data/maofen.json'),'易茅时价':('MzYyMTQ3NTQ1OQ==','data/yimao.json'),'国酒酱香':('MzI2MTY5ODk5Ng==','data/guojiu.json')}
 biz,path=destinations[data['article']['source']]
 if data['article'].get('biz')!=biz:raise ValueError('publisher identity mismatch')
 url='https://api.github.com/repos/'+repo+'/contents/'+path

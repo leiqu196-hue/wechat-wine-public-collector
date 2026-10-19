@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        source: ['今日酒价', '茅粉鲁智深']
+        source: ['今日酒价', '茅粉鲁智深', '易茅时价', '国酒酱香']
     runs-on: ubuntu-22.04
     timeout-minutes: 6
     steps:
@@ -30,7 +30,12 @@ jobs:
       - name: Read anonymous current publisher report
         env:
           WINE_SOURCE: ${{ matrix.source }}
-        run: xvfb-run -a python3 collect.py
+        run: |
+          if [ "$WINE_SOURCE" = "易茅时价" ] || [ "$WINE_SOURCE" = "国酒酱香" ]; then
+            xvfb-run -a python3 search_collect.py
+          else
+            xvfb-run -a python3 collect.py
+          fi
       - name: Print bounded public diagnostic
         if: always()
         run: |
