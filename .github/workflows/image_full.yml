@@ -1,0 +1,34 @@
+name: Inspect complete public quotation images
+on:
+  workflow_dispatch:
+    inputs:
+      article_url:
+        description: Public original wine-industry article URL
+        type: string
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: public-full-image-inspection
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install fixed free browser and CPU OCR engines
+        run: |
+          python3 -m pip install playwright==1.63.0 rapidocr-onnxruntime==1.4.4 numpy==1.26.4 opencv-python==4.11.0.86 onnxruntime==1.20.1
+          python3 -m playwright install --with-deps firefox
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-sim
+      - name: Inspect every original public image
+        env:
+          ARTICLE_URL: ${{ inputs.article_url }}
+        run: xvfb-run -a python3 full_image_probe.py
+      - name: Save unverified evidence separately from price feeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 save_full_probe.py
