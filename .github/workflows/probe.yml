@@ -1,5 +1,8 @@
 name: Public wholesale report probe
 on:
+  push:
+    branches: [main]
+    paths: [requests/server-wine-trigger.json]
   workflow_dispatch:
     inputs:
       source:
@@ -25,13 +28,36 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        source: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.source == '易茅时价' && '["易茅时价"]' || '["易茅时价","今日酒价","茅粉鲁智深","国酒酱香"]') }}
+        source: ${{ fromJSON((github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.source == '易茅时价')) && '["易茅时价"]' || '["易茅时价","今日酒价","茅粉鲁智深","国酒酱香"]') }}
     runs-on: ubuntu-22.04
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 2
+      - name: Validate fixed server request
+        if: github.event_name == 'push'
+        run: |
+          python3 - <<'PYCODE'
+          import json, os, re, subprocess
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+          event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+          sha=os.environ['GITHUB_SHA']
+          assert event['ref']=='refs/heads/main' and event['after']==sha
+          changed=subprocess.check_output(['git','diff-tree','--no-commit-id','--name-only','-r',sha],text=True).strip()
+          assert changed=='requests/server-wine-trigger.json'
+          request=json.loads(Path(changed).read_text())
+          assert set(request)=={'version','request_id','date','source','requested_at'}
+          assert request['version']==1 and request['source']=='易茅时价'
+          assert re.fullmatch(r'\d{4}-\d{2}-\d{2}T(?:07:(?:10|30|50)|probe-\d{6})',request['request_id'])
+          cn=timezone(timedelta(hours=8)); now=datetime.now(cn)
+          requested=datetime.fromisoformat(request['requested_at'])
+          assert requested.tzinfo is not None and requested<=now+timedelta(minutes=5)
+          assert request['date']==requested.astimezone(cn).date().isoformat()==now.date().isoformat()
+          assert request['request_id'].startswith(request['date']+'T')
+          PYCODE
       - name: Install fixed public browser runtime
         run: |
           python3 -m pip install playwright==1.63.0
