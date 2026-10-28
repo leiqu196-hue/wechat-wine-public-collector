@@ -2,7 +2,11 @@ name: Offline collector regression tests
 on:
   pull_request:
   push:
-    branches: ['fix/**']
+    branches: [main, 'fix/**']
+    paths:
+      - '*.py'
+      - 'tests/**'
+      - '.github/workflows/tests.yml'
 permissions:
   contents: read
 jobs:

@@ -27,5 +27,5 @@ still be checked by consumers.
 
 Run offline tests with `python3 -m unittest discover -s tests -v`; they require only
 the Python standard library and never publish or access publishers. The regression
-workflow runs on PRs and fix branches with read-only permissions. See
+workflow runs on PRs and code changes on main/fix branches with read-only permissions. See
 [October 28 investigation](docs/INCIDENT_20261028.md) for evidence and unverified limits.
