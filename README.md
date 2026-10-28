@@ -13,3 +13,19 @@ Scheduled attempts use China time 09:50, 10:15, 10:40 and 11:20. GitHub may dela
 ## Additional original publisher
 
 The scheduled workflow also reads 茅粉鲁智深 from its publisher-owned quotation album (biz Mzg4MzMyMTExMQ==, album 4475132542408294400). Each publisher runs independently and saves to a separate fixed public file; an unavailable publisher cannot replace or suppress another publisher. The server validates every table, including the first daily-price table and the later reference-price tables; retail columns are never used as reference prices. Historical sample inspection is not a current-date publication.
+
+## Failure diagnosis and offline checks
+
+Discovery retains bounded candidate titles/counts even when no current original is
+found. Empty lists, missing search markup and explicit verification challenges have
+separate reasons; an absent current title only describes the inspected listing,
+not the publisher's posting status. Album discovery inspects up to 20 loaded rows.
+Explicit challenges stop collection and require no login or CAPTCHA handling.
+Before publishing, the saver independently rejects stale collection/article/native
+publication dates. Existing historical feeds keep their original dates and must
+still be checked by consumers.
+
+Run offline tests with `python3 -m unittest discover -s tests -v`; they require only
+the Python standard library and never publish or access publishers. The regression
+workflow runs on PRs and code changes on main/fix branches with read-only permissions. See
+[October 28 investigation](docs/INCIDENT_20261028.md) for evidence and unverified limits.

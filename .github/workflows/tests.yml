@@ -1,0 +1,23 @@
+name: Offline collector regression tests
+on:
+  pull_request:
+  push:
+    branches: [main, 'fix/**']
+    paths:
+      - '*.py'
+      - 'tests/**'
+      - '.github/workflows/tests.yml'
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: python3 -m unittest discover -s tests -v

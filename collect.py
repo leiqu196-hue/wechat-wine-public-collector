@@ -3,7 +3,7 @@ import asyncio,json,re,os
 from pathlib import Path
 from datetime import datetime,timezone,timedelta
 from urllib.parse import urlsplit,parse_qs,urlencode
-from playwright.async_api import async_playwright
+from discovery_contract import current_titles,listing_diagnostic
 CN=timezone(timedelta(hours=8))
 CONFIG={'今日酒价':('Mzk0NzI1MjY4Ng==','4328328528879271941'),'茅粉鲁智深':('Mzg4MzMyMTExMQ==','4475132542408294400')}
 AUTHOR=os.environ.get('WINE_SOURCE','今日酒价')
@@ -78,6 +78,7 @@ def verify_maofen_tables(tables,today):
  if not 5<=count<=30 or not 50<=prices<=500 or not daily or not reference:raise ValueError('incomplete quotation')
  return {'price_rows':prices,'price_tables':count,'daily_price_rows':daily,'reference_price_rows':reference}
 async def run():
+ from playwright.async_api import async_playwright
  today=datetime.now(CN).date().isoformat();attempts=[]
  async with async_playwright() as pw:
   for engine in ['firefox','chromium']:
@@ -87,10 +88,12 @@ async def run():
     if engine=='chromium':opts['chromium_sandbox']=True
     browser=await getattr(pw,engine).launch(**opts);page=await browser.new_page();page.set_default_timeout(12000)
     stage='album_navigation';await page.goto(ALBUM,wait_until='domcontentloaded',timeout=25000)
-    stage='album_identity';listing=await page.evaluate("""()=>({biz:window.biz,author:document.querySelector('.album__author-name')?.textContent.trim(),rows:[...document.querySelectorAll('li[data-link]')].slice(0,3).map(e=>({title:e.dataset.title,url:e.dataset.link}))})""")
+    stage='album_identity';listing=await page.evaluate("""()=>({biz:window.biz,author:document.querySelector('.album__author-name')?.textContent.trim(),verification:document.body.innerText.includes('环境异常')||document.body.innerText.includes('完成验证'),rows:[...document.querySelectorAll('li[data-link]')].slice(0,20).map(e=>({title:e.dataset.title,url:e.dataset.link}))})""")
     if listing['biz']!=BIZ or listing['author']!=AUTHOR:raise ValueError('album publisher mismatch')
-    prefix=f'{int(today[5:7])}月{int(today[8:])}日'
-    candidates=[r for r in listing['rows'] if prefix in r['title']]
+    stage='album_candidates'
+    attempts.append(dict(listing_diagnostic(listing['rows'],datetime.fromisoformat(today).date(),stage,listing.get('verification',False)),engine=engine))
+    if listing.get('verification'):break
+    candidates=current_titles(listing['rows'],datetime.fromisoformat(today).date())
     if not candidates:raise ValueError('no current daily article')
     stage='article_navigation';url=article_url(candidates[0]['url']);await page.goto(url,wait_until='domcontentloaded',timeout=25000)
     stage='article_content';await page.locator('#js_content').wait_for(state='visible',timeout=12000)
@@ -109,6 +112,7 @@ async def run():
       diagnostic['page']=await asyncio.wait_for(page.evaluate("""()=>({title:document.title.slice(0,160),has_content:!!document.querySelector('#js_content'),has_album:!!document.querySelector('li[data-link]'),verification:document.body.innerText.includes('环境异常')||document.body.innerText.includes('完成验证'),biz:window.biz||null,author:document.querySelector('.album__author-name')?.textContent.trim()||null})"""),3)
      except Exception:pass
     attempts.append(diagnostic)
+    if diagnostic.get('page',{}).get('verification'):break
    finally:
     if browser:await browser.close()
  out={'status':'no_today_verified_quotes','checked_at':datetime.now(CN).isoformat(),'attempts':attempts};Path('result.json').write_text(json.dumps(out));print(json.dumps(out));raise SystemExit(1)

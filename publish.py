@@ -1,15 +1,13 @@
 """Commit only the bounded public collector result. No external service credentials."""
 import base64,json,os,urllib.request,urllib.error
 from pathlib import Path
+from publish_contract import validate_report
 raw=Path('result.json').read_bytes()
 if len(raw)>250000:raise ValueError('public result size limit')
 data=json.loads(raw)
-if data.get('status')!='publisher_today_verified_completeness_unverified':raise ValueError('no verified current publisher article')
+path=validate_report(data)
 repo=os.environ['GITHUB_REPOSITORY']
 if repo!='leiqu196-hue/wechat-wine-public-collector':raise ValueError('repository mismatch')
-destinations={'今日酒价':('Mzk0NzI1MjY4Ng==','data/latest.json'),'茅粉鲁智深':('Mzg4MzMyMTExMQ==','data/maofen.json'),'易茅时价':('MzYyMTQ3NTQ1OQ==','data/yimao.json'),'国酒酱香':('MzI2MTY5ODk5Ng==','data/guojiu.json')}
-biz,path=destinations[data['article']['source']]
-if data['article'].get('biz')!=biz:raise ValueError('publisher identity mismatch')
 url='https://api.github.com/repos/'+repo+'/contents/'+path
 headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
 sha=None

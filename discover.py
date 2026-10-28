@@ -3,7 +3,6 @@ import asyncio,json,os,re,base64,hashlib,subprocess,sys,tempfile,signal,html
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs,urlencode
-from playwright.async_api import async_playwright
 SOURCES={'酒业网','国酒酱香','国酒醇香','易茅时价','茅粉鲁智深'}
 def article_input(url):
  p=urlsplit(url);q=parse_qs(p.query)
@@ -13,6 +12,7 @@ def article_input(url):
  return url
 async def inspect(page,expected,url):
  await page.goto(url,wait_until='domcontentloaded',timeout=25000)
+ if await page.evaluate("()=>document.body.innerText.includes('环境异常')||document.body.innerText.includes('完成验证')"):raise ValueError('verification_required')
  await page.locator('#js_content').wait_for(state='visible',timeout=12000)
  d=await page.evaluate("""()=>({title:document.querySelector('#activity-name')?.innerText.trim(),author:document.querySelector('#js_name')?.innerText.trim(),biz:window.biz||null,mid:String(window.mid||window.appmsgid||''),idx:String(window.idx||window.itemidx||''),sn:window.sn||null,published_at:document.querySelector('#publish_time')?.innerText.trim(),published_timestamp:window.ct||null,canonical:window.msg_link||document.querySelector('meta[property="og:url"]')?.content||null,body:document.querySelector('#js_content').innerText,tables:[...document.querySelectorAll('#js_content table')].map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))),images:[...document.querySelectorAll('#js_content img')].map(e=>e.getAttribute('data-src')||e.src).filter(u=>u&&u.startsWith('https://mmbiz.qpic.cn/')).slice(0,100),album_ids:[...new Set([...document.documentElement.innerHTML.matchAll(/album_id[^0-9]{1,25}([0-9]{12,25})/g)].map(m=>m[1]))].slice(0,12)})""")
  if d['author']!=expected:raise ValueError('publisher mismatch')
@@ -58,6 +58,7 @@ async def account_candidates(page,expected,out):
   except Exception as e:out['attempts'].append({'stage':'public_profile','error':type(e).__name__})
  return list(dict.fromkeys(urls))[:2]
 async def main():
+ from playwright.async_api import async_playwright
  target=json.loads(os.environ['DISCOVERY_TARGET']);expected=target['source']
  if expected not in SOURCES:raise ValueError('unsupported publisher')
  out={'source':expected,'status':'unavailable','articles':[],'attempts':[]}
