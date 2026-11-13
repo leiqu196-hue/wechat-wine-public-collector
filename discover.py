@@ -3,6 +3,7 @@ import asyncio,json,os,re,base64,hashlib,subprocess,sys,tempfile,signal,html
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs,urlencode
+from public_navigation import require_public_page,page_error
 SOURCES={'酒业网','国酒酱香','国酒醇香','易茅时价','茅粉鲁智深'}
 def article_input(url):
  p=urlsplit(url);q=parse_qs(p.query)
@@ -11,9 +12,13 @@ def article_input(url):
  if len(url)>4000:raise ValueError('article URL size')
  return url
 async def inspect(page,expected,url):
- await page.goto(url,wait_until='domcontentloaded',timeout=25000)
- if await page.evaluate("()=>document.body.innerText.includes('环境异常')||document.body.innerText.includes('完成验证')"):raise ValueError('verification_required')
- await page.locator('#js_content').wait_for(state='visible',timeout=12000)
+ if url is not None:
+  try:await page.goto(url,wait_until='domcontentloaded',timeout=25000)
+  except Exception as exc:raise await page_error(page,'original_navigation',exc) from exc
+ await require_public_page(page)
+ try:await page.locator('#js_content').wait_for(state='visible',timeout=12000)
+ except Exception as exc:raise await page_error(page,'original_content',exc) from exc
+ await require_public_page(page)
  d=await page.evaluate("""()=>({title:document.querySelector('#activity-name')?.innerText.trim(),author:document.querySelector('#js_name')?.innerText.trim(),biz:window.biz||null,mid:String(window.mid||window.appmsgid||''),idx:String(window.idx||window.itemidx||''),sn:window.sn||null,published_at:document.querySelector('#publish_time')?.innerText.trim(),published_timestamp:window.ct||null,canonical:window.msg_link||document.querySelector('meta[property="og:url"]')?.content||null,body:document.querySelector('#js_content').innerText,tables:[...document.querySelectorAll('#js_content table')].map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))),images:[...document.querySelectorAll('#js_content img')].map(e=>e.getAttribute('data-src')||e.src).filter(u=>u&&u.startsWith('https://mmbiz.qpic.cn/')).slice(0,100),album_ids:[...new Set([...document.documentElement.innerHTML.matchAll(/album_id[^0-9]{1,25}([0-9]{12,25})/g)].map(m=>m[1]))].slice(0,12)})""")
  if d['author']!=expected:raise ValueError('publisher mismatch')
  if not isinstance(d['biz'],str) or not re.fullmatch(r'[A-Za-z0-9+/=]{8,80}',d['biz']):raise ValueError('publisher identity absent')
