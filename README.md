@@ -10,6 +10,13 @@ The diagnostic status `publisher_today_verified_completeness_unverified` only pr
 
 Scheduled attempts use China time 09:50, 10:15, 10:40 and 11:20. GitHub may delay scheduled jobs. A failed collection does not replace the last successful public report; consumers must reject stale dates. The runtime token is supplied by GitHub only to the final public-data commit step, never stored in this repository. The collector reports completeness as unverified; the consuming server must compare every parsed row to the original tables before publishing prices.
 
+The existing manual workflow can select `今日酒价` or `茅粉鲁智深` independently,
+as well as `易茅时价` or the unchanged default `全部`. A single-source selection
+does not visit the other sources and uses the same shared concurrency group,
+runtime limits, publisher/date checks, and verification stop behavior. Scheduled
+runs still select all four sources; fixed server push requests still select only
+易茅时价. This adds no schedule, push-request option, permission, or import route.
+
 ## Additional original publisher
 
 The scheduled workflow also reads 茅粉鲁智深 from its publisher-owned quotation album (biz Mzg4MzMyMTExMQ==, album 4475132542408294400). Each publisher runs independently and saves to a separate fixed public file; an unavailable publisher cannot replace or suppress another publisher. The server validates every table, including the first daily-price table and the later reference-price tables; retail columns are never used as reference prices. Historical sample inspection is not a current-date publication.
