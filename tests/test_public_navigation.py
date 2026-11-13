@@ -1,7 +1,7 @@
 import asyncio,types,unittest
 from unittest.mock import AsyncMock,MagicMock,patch
 from discover import inspect
-from public_navigation import PublicPageError,VERIFICATION_JS,page_error
+from public_navigation import PublicPageError,PublicVerificationRequired,VERIFICATION_JS,page_error,page_location,require_public_page
 from search_collect import inspect_search_link
 
 
@@ -9,7 +9,7 @@ class PublicNavigationTests(unittest.IsolatedAsyncioTestCase):
  async def test_navigation_timeout_preserves_stage_without_query(self):
   page=types.SimpleNamespace(url='https://weixin.sogou.com/link?token=DO_NOT_LOG',goto=AsyncMock(side_effect=TimeoutError('secret URL')),evaluate=AsyncMock(return_value=False))
   with self.assertRaises(PublicPageError) as raised:await inspect(page,'易茅时价','https://weixin.sogou.com/link?token=DO_NOT_LOG')
-  self.assertEqual(raised.exception.diagnostic,{'stage':'original_navigation','error':'TimeoutError','page_host':'weixin.sogou.com','page_path_kind':'/link'})
+  self.assertEqual(raised.exception.diagnostic,{'stage':'original_navigation','error':'TimeoutError','page_host':'weixin.sogou.com'})
   self.assertNotIn('DO_NOT_LOG',str(raised.exception)+str(raised.exception.diagnostic))
 
  async def test_content_timeout_is_distinct(self):
@@ -28,6 +28,26 @@ class PublicNavigationTests(unittest.IsolatedAsyncioTestCase):
   with self.assertRaisesRegex(ValueError,'verification_required'):await page_error(page,'original_navigation',TimeoutError())
   for text in ['环境异常','完成验证','验证码','访问过于频繁','/antispider/']:
    self.assertIn(text,VERIFICATION_JS)
+
+ async def test_verification_identifies_only_known_host_and_stage(self):
+  page=types.SimpleNamespace(url='https://user:private@mp.weixin.qq.com/private-path?secret=DO_NOT_LOG',evaluate=AsyncMock(return_value=True))
+  with self.assertRaises(PublicVerificationRequired) as raised:await require_public_page(page)
+  self.assertEqual(str(raised.exception),'verification_required')
+  self.assertEqual(raised.exception.diagnostic,{'stage':'verification_required','verification_stage':'original_content','page_host':'mp.weixin.qq.com'})
+  self.assertIsInstance(raised.exception,ValueError)
+  page.evaluate.assert_awaited_once()
+
+ async def test_navigation_verification_preserves_stage_without_more_requests(self):
+  page=types.SimpleNamespace(url='https://weixin.sogou.com/antispider/?private=DO_NOT_LOG',evaluate=AsyncMock(return_value=True))
+  with self.assertRaises(PublicVerificationRequired) as raised:await page_error(page,'original_link_navigation',TimeoutError())
+  self.assertEqual(raised.exception.diagnostic['verification_stage'],'original_link_navigation')
+  self.assertEqual(raised.exception.diagnostic['page_host'],'weixin.sogou.com')
+  self.assertNotIn('antispider',str(raised.exception.diagnostic))
+  page.evaluate.assert_awaited_once()
+
+ def test_unknown_hosts_and_malformed_urls_are_not_retained(self):
+  for url,expected in [('https://private.example/private?key=value','other'),('https://[malformed','unknown')]:
+   self.assertEqual(page_location(types.SimpleNamespace(url=url)),{'page_host':expected})
 
  def search_fixture(self,target='_blank'):
   original=types.SimpleNamespace(wait_for_load_state=AsyncMock(),close=AsyncMock())
