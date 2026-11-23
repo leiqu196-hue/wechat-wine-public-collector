@@ -37,9 +37,9 @@ class WorkflowSourceTests(unittest.TestCase):
   for source in ['',None,'今日酒价','茅粉鲁智深']:
    with self.subTest(source=source):self.assertEqual(selected_sources('schedule',source),ALL_SOURCES)
 
- def test_push_remains_yimao_only_regardless_of_input(self):
+ def test_push_has_one_placeholder_regardless_of_manual_input(self):
   for source in ['',None,'全部','今日酒价','茅粉鲁智深']:
-   with self.subTest(source=source):self.assertEqual(selected_sources('push',source),['易茅时价'])
+   with self.subTest(source=source):self.assertEqual(selected_sources('push',source),['server-request'])
 
  def test_existing_schedule_concurrency_and_permissions_unchanged(self):
   text=WORKFLOW.read_text()
@@ -48,7 +48,10 @@ class WorkflowSourceTests(unittest.TestCase):
   self.assertIn('concurrency:\n  group: public-wholesale-probe\n  cancel-in-progress: false\n',text)
   self.assertIn('max-parallel: 1',text)
   self.assertIn('timeout-minutes: 6',text)
-  self.assertIn("assert request['version']==1 and request['source']=='易茅时价'",text)
+  self.assertIn("if: github.event_name == 'push'\n        id: server_request",text)
+  self.assertIn("run: python3 validate_server_request.py",text)
+  self.assertIn("WINE_SOURCE: ${{ steps.server_request.outputs.source || matrix.source }}",text)
+  self.assertIn("::error::Missing validated wine source",text)
 
 
 if __name__=='__main__':unittest.main()
