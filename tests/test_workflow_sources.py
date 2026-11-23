@@ -45,7 +45,7 @@ class WorkflowSourceTests(unittest.TestCase):
   text=WORKFLOW.read_text()
   self.assertEqual(re.findall(r"- cron: '([^']+)'",text),['30 23 * * *','50 1 * * *','15,40 2 * * *','20 3 * * *'])
   self.assertIn('permissions:\n  contents: write\n',text)
-  self.assertIn('concurrency:\n  group: public-wholesale-probe\n  cancel-in-progress: false\n',text)
+  self.assertIn('concurrency:\n  group: public-wholesale-probe\n  cancel-in-progress: false\n  queue: max\n',text)
   self.assertIn('max-parallel: 1',text)
   self.assertIn('timeout-minutes: 6',text)
   self.assertIn("if: github.event_name == 'push'\n        id: server_request",text)
