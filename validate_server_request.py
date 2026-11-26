@@ -10,8 +10,10 @@ CN = timezone(timedelta(hours=8))
 REQUEST = "requests/server-wine-trigger.json"
 SLOTS = {
     "07:10": "易茅时价", "07:30": "易茅时价", "07:50": "易茅时价",
-    "10:15": "今日酒价", "10:45": "茅粉鲁智深",
+    "10:00": "今日酒价", "10:10": "今日酒价", "10:15": "今日酒价", "10:20": "今日酒价",
+    "10:30": "茅粉鲁智深", "10:40": "茅粉鲁智深", "10:45": "茅粉鲁智深", "10:50": "茅粉鲁智深",
 }
+WINDOWED = frozenset(slot for slot, source in SLOTS.items() if source != "易茅时价")
 
 
 def source_for_request(request, now):
@@ -40,7 +42,7 @@ def source_for_request(request, now):
         expected = SLOTS.get(slot)
         if expected is None:
             raise ValueError("unrecognized timer slot")
-        if slot in {"10:15", "10:45"}:
+        if slot in WINDOWED:
             slot_start = datetime.fromisoformat(date + "T" + slot).replace(tzinfo=CN)
             if not slot_start <= requested < slot_start + timedelta(minutes=5):
                 raise ValueError("request was created outside its timer slot")

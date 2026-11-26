@@ -25,6 +25,17 @@ class ServerRequestTest(unittest.TestCase):
         for slot, source in (("10:15", "今日酒价"), ("10:45", "茅粉鲁智深")):
             self.assertEqual(source_for_request(self.request(slot, source), self.now), source)
 
+    def test_retry_slots_select_only_their_source(self):
+        for slots, source, other in ((("10:00", "10:10", "10:20"), "今日酒价", "茅粉鲁智深"),
+                                     (("10:30", "10:40", "10:50"), "茅粉鲁智深", "今日酒价")):
+            for slot in slots:
+                ts = "2026-11-24T" + slot + ":02+08:00"
+                self.assertEqual(source_for_request(self.request(slot, source, ts), self.now), source)
+                with self.assertRaises(ValueError):
+                    source_for_request(self.request(slot, other, ts), self.now)
+                with self.assertRaises(ValueError):
+                    source_for_request(self.request(slot, source, "2026-11-24T" + slot[:3] + "59:00+08:00"), self.now)
+
     def test_wrong_or_nonapproved_source_fails(self):
         for source in ("茅粉鲁智深", "易茅时价", "国酒酱香", "全部", "今日酒价\nsource=国酒酱香"):
             with self.assertRaises(ValueError):
