@@ -14,8 +14,10 @@ The existing manual workflow can select `今日酒价` or `茅粉鲁智深` inde
 as well as `易茅时价` or the unchanged default `全部`. A single-source selection
 does not visit the other sources and uses the same shared concurrency group,
 runtime limits, publisher/date checks, and verification stop behavior. Scheduled
-runs still select all four sources; fixed server push requests still select only
-易茅时价. This adds no schedule, push-request option, permission, or import route.
+runs still select all four sources. A fixed server push selects one source: 易茅时价
+at 07:10, 07:30 or 07:50, 今日酒价 at 10:15, or 茅粉鲁智深 at 10:45
+(China time). The existing diagnostic probe remains 易茅-only. Push requests
+validate the exact path, source and date; this adds no timer or permission.
 
 ## Additional original publisher
 
